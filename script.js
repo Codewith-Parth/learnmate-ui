@@ -10,37 +10,20 @@ if (typeof marked !== 'undefined') {
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const setupOverlay   = document.getElementById('setupOverlay');
-const setupIamToken  = document.getElementById('setupIamToken');
-const setupProjectId = document.getElementById('setupProjectId');
-const setupRegion    = document.getElementById('setupRegion');
-const setupBtn       = document.getElementById('setupBtn');
-const setupBtnText   = document.getElementById('setupBtnText');
-const setupError     = document.getElementById('setupError');
-const toggleApiKey   = document.getElementById('toggleApiKey');
-
-const messagesEl     = document.getElementById('messages');
-const welcomeScreen  = document.getElementById('welcomeScreen');
-const chatArea       = document.getElementById('chatArea');
-const userInput      = document.getElementById('userInput');
-const sendBtn        = document.getElementById('sendBtn');
-const clearBtn       = document.getElementById('clearBtn');
-const settingsBtn    = document.getElementById('settingsBtn');
-const menuBtn        = document.getElementById('menuBtn');
-const sidebar        = document.getElementById('sidebar');
-const sidebarClose   = document.getElementById('sidebarClose');
-const btnNewChat     = document.getElementById('btnNewChat');
-const btnHistory     = document.getElementById('btnHistory');
-const btnProgress    = document.getElementById('btnProgress');
-const btnRoadmap     = document.getElementById('btnRoadmap');
-const topbarStatus   = document.getElementById('topbarStatus');
-
-// ── Session state ─────────────────────────────────────────────────────────────
-let SESSION = {
-  iamToken:  '',   // raw token (without "Bearer " prefix)
-  projectId: '',
-  region:    'au-syd',
-};
+const messagesEl    = document.getElementById('messages');
+const welcomeScreen = document.getElementById('welcomeScreen');
+const chatArea      = document.getElementById('chatArea');
+const userInput     = document.getElementById('userInput');
+const sendBtn       = document.getElementById('sendBtn');
+const clearBtn      = document.getElementById('clearBtn');
+const settingsBtn   = document.getElementById('settingsBtn');
+const menuBtn       = document.getElementById('menuBtn');
+const sidebar       = document.getElementById('sidebar');
+const sidebarClose  = document.getElementById('sidebarClose');
+const btnNewChat    = document.getElementById('btnNewChat');
+const btnHistory    = document.getElementById('btnHistory');
+const btnProgress   = document.getElementById('btnProgress');
+const btnRoadmap    = document.getElementById('btnRoadmap');
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let conversationHistory = [];
@@ -49,98 +32,12 @@ let milestones          = [];
 let studentProfile      = {};
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  SESSION HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
-function loadSession() {
-  try {
-    const raw = localStorage.getItem('learnmate_session');
-    if (raw) Object.assign(SESSION, JSON.parse(raw));
-  } catch (_) {}
-}
-
-function saveSession() {
-  localStorage.setItem('learnmate_session', JSON.stringify(SESSION));
-}
-
-function isSessionValid() {
-  return !!(SESSION.iamToken && SESSION.projectId);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  SETUP SCREEN
-// ═══════════════════════════════════════════════════════════════════════════
-function showSetup() {
-  setupOverlay.classList.remove('hidden');
-  if (SESSION.iamToken)  setupIamToken.value   = SESSION.iamToken;
-  if (SESSION.projectId) setupProjectId.value  = SESSION.projectId;
-  if (SESSION.region)    setupRegion.value      = SESSION.region;
-  hideSetupError();
-}
-
-function hideSetup() {
-  setupOverlay.classList.add('hidden');
-}
-
-function showSetupError(msg) {
-  setupError.textContent = msg;
-  setupError.classList.add('visible');
-}
-
-function hideSetupError() {
-  setupError.classList.remove('visible');
-  setupError.textContent = '';
-}
-
-// Toggle token visibility
-toggleApiKey.addEventListener('click', () => {
-  setupIamToken.type = setupIamToken.type === 'password' ? 'text' : 'password';
-});
-
-setupBtn.addEventListener('click', handleSetupConnect);
-setupIamToken.addEventListener('keydown',  e => { if (e.key === 'Enter') handleSetupConnect(); });
-setupProjectId.addEventListener('keydown', e => { if (e.key === 'Enter') handleSetupConnect(); });
-
-function handleSetupConnect() {
-  // Strip "Bearer " prefix if user accidentally included it
-  const rawToken  = setupIamToken.value.trim().replace(/^Bearer\s+/i, '');
-  const projectId = setupProjectId.value.trim();
-  const region    = setupRegion.value;
-
-  hideSetupError();
-
-  if (!rawToken)          return showSetupError('Please paste your IBM IAM Token.');
-  if (rawToken.length < 50) return showSetupError('Token looks too short. Make sure you copied the full access_token value.');
-  if (!projectId)         return showSetupError('Please enter your watsonx Project ID.');
-
-  SESSION.iamToken  = rawToken;
-  SESSION.projectId = projectId;
-  SESSION.region    = region;
-  saveSession();
-
-  LEARNMATE_CONFIG.WATSONX_API_URL =
-    `https://${region}.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-31`;
-
-  hideSetup();
-  updateTopbarStatus(true);
-  showToast('✅ Connected to IBM watsonx!');
-}
-
-function updateTopbarStatus(online) {
-  if (!topbarStatus) return;
-  topbarStatus.textContent = online ? 'Online' : 'Offline';
-  topbarStatus.style.color = online ? '' : 'var(--danger)';
-}
-
-settingsBtn.addEventListener('click', () => {
-  showSetup();
-  sidebar.classList.remove('open');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  INIT
+//  INIT — load persisted chat, skip setup screen entirely
 // ═══════════════════════════════════════════════════════════════════════════
 (function init() {
-  loadSession();
+  // Hide setup overlay immediately — credentials are baked into config.js
+  const overlay = document.getElementById('setupOverlay');
+  if (overlay) overlay.classList.add('hidden');
 
   try {
     const saved = localStorage.getItem('learnmate_history');
@@ -155,16 +52,6 @@ settingsBtn.addEventListener('click', () => {
       }
     }
   } catch (_) {}
-
-  if (isSessionValid()) {
-    LEARNMATE_CONFIG.WATSONX_API_URL =
-      `https://${SESSION.region}.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-31`;
-    hideSetup();
-    updateTopbarStatus(true);
-  } else {
-    showSetup();
-    updateTopbarStatus(false);
-  }
 })();
 
 // ── Persist chat ──────────────────────────────────────────────────────────────
@@ -230,13 +117,15 @@ btnHistory.addEventListener('click',  () => { showToast('History stored in this 
 btnProgress.addEventListener('click', () => { openProgressPanel(); sidebar.classList.remove('open'); });
 btnRoadmap.addEventListener('click',  () => { openRoadmapPanel();  sidebar.classList.remove('open'); });
 
+// Settings button — no-op in baked-in mode
+if (settingsBtn) settingsBtn.style.display = 'none';
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  SEND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 async function handleSend() {
   const text = userInput.value.trim();
   if (!text || isGenerating) return;
-  if (!SESSION.iamToken) { showSetup(); return; }
 
   userInput.value = ''; userInput.style.height = 'auto'; sendBtn.disabled = true;
   hideWelcome();
@@ -256,20 +145,19 @@ async function handleSend() {
     extractMilestones(response); saveState();
   } catch (err) {
     removeTyping(typingId);
-    const isAuth = err.message.includes('401') || err.message.includes('403');
-    if (isAuth) {
-      showSetupError('Your IAM token has expired. Please paste a new token.');
-      showSetup();
-    } else {
-      renderMessage('assistant', `**Error:** ${err.message}\n\nIf your token expired, click the ⚙️ button to enter a new one.`);
-    }
+    const expired = err.message.includes('401') || err.message.includes('403');
+    renderMessage('assistant',
+      expired
+        ? `**Token expired.** The demo token has expired (they last 1 hour).\n\nThe site owner needs to refresh it. Please check back shortly! ⏳`
+        : `**Error:** ${err.message}`
+    );
   } finally {
     isGenerating = false; setInputState(true); userInput.focus();
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  IBM watsonx API CALL — direct, no proxy needed
+//  IBM watsonx API — direct call
 // ═══════════════════════════════════════════════════════════════════════════
 async function callWatsonxAPI(history) {
   const messages = [
@@ -278,14 +166,14 @@ async function callWatsonxAPI(history) {
   ];
 
   const res = await fetch(LEARNMATE_CONFIG.WATSONX_API_URL, {
-    method:  'POST',
+    method: 'POST',
     headers: {
       'Content-Type':  'application/json',
-      'Authorization': `Bearer ${SESSION.iamToken}`,
+      'Authorization': `Bearer ${LEARNMATE_CONFIG.IAM_TOKEN}`,
     },
     body: JSON.stringify({
       model_id:   LEARNMATE_CONFIG.MODEL_ID,
-      project_id: SESSION.projectId,
+      project_id: LEARNMATE_CONFIG.PROJECT_ID,
       messages,
       parameters: {
         max_new_tokens:     LEARNMATE_CONFIG.MAX_NEW_TOKENS,
@@ -327,7 +215,6 @@ function renderMessage(role, content, scroll = true) {
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-
   if (isUser) {
     bubble.textContent = content;
   } else {
@@ -347,7 +234,6 @@ function renderMessage(role, content, scroll = true) {
   const col = document.createElement('div');
   col.className = 'msg-col';
   col.appendChild(bubble); col.appendChild(meta);
-
   div.appendChild(avatar); div.appendChild(col);
   messagesEl.appendChild(div);
   if (scroll) scrollToBottom();
@@ -378,7 +264,7 @@ function openProgressPanel() {
   const overlay = createOverlay('My Progress');
   const body    = overlay.querySelector('.panel-body');
   if (milestones.length === 0) {
-    body.innerHTML = `<div class="progress-empty">No milestones yet. Start a conversation with LearnMate to generate your roadmap!</div>`;
+    body.innerHTML = `<div class="progress-empty">No milestones yet. Start chatting with LearnMate to generate your roadmap!</div>`;
   } else {
     milestones.forEach(m => {
       const item = document.createElement('div'); item.className = 'milestone-item';
