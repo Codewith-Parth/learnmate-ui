@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LearnMate – AI Career & Learning Coach</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="assets/LearnMate.png" alt="LearnMate Logo" class="sidebar-logo" />
+      <div class="sidebar-brand">
+        <span class="brand-name">LearnMate</span>
+        <span class="brand-sub">AI Learning Coach</span>
+      </div>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">&#10005;</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-label">Menu</div>
+      <button class="nav-btn active" id="btnNewChat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        New Chat
+      </button>
+      <button class="nav-btn" id="btnHistory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </button>
+
+      <div class="nav-label">Learning</div>
+      <button class="nav-btn" id="btnProgress">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        My Progress
+      </button>
+      <button class="nav-btn" id="btnRoadmap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        My Roadmap
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="model-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        Llama 3.3 · 70B
+      </div>
+      <div class="powered-by">Powered by IBM watsonx</div>
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────────────────── -->
+  <div class="main-wrapper">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="Toggle sidebar">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-title">
+        <img src="assets/LearnMate.png" alt="" class="topbar-logo" />
+        LearnMate
+      </div>
+      <div class="topbar-status">Online</div>
+      <button class="clear-btn" id="clearBtn" title="Clear conversation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </header>
+
+    <!-- Chat area -->
+    <main class="chat-area" id="chatArea">
+
+      <!-- Welcome screen -->
+      <div class="welcome" id="welcomeScreen">
+        <img src="assets/LearnMate.png" alt="LearnMate" class="welcome-logo" />
+        <h1 class="welcome-title">Welcome to <span>LearnMate</span></h1>
+        <p class="welcome-sub">Your personalized AI Career &amp; Learning Coach powered by IBM watsonx</p>
+
+        <div class="welcome-chips">
+          <span class="welcome-chip">🗺️ Roadmaps</span>
+          <span class="welcome-chip">📚 Courses</span>
+          <span class="welcome-chip">🏆 Certifications</span>
+          <span class="welcome-chip">💼 Career Guidance</span>
+          <span class="welcome-chip">🚀 Projects</span>
+        </div>
+
+        <div class="suggestion-grid">
+          <button class="suggestion-card" data-prompt="I want to become a Full Stack Developer. Can you help me create a learning roadmap?">
+            <span class="suggestion-icon">🗺️</span>
+            <span>Build my learning roadmap</span>
+          </button>
+          <button class="suggestion-card" data-prompt="I am a beginner with no coding experience. What career paths are best for me?">
+            <span class="suggestion-icon">🚀</span>
+            <span>Explore career paths</span>
+          </button>
+          <button class="suggestion-card" data-prompt="What IBM certifications should I pursue for a career in AI and Machine Learning?">
+            <span class="suggestion-icon">🏆</span>
+            <span>Certification guidance</span>
+          </button>
+          <button class="suggestion-card" data-prompt="I have been learning Python for 2 months. What projects should I build next?">
+            <span class="suggestion-icon">💡</span>
+            <span>Project recommendations</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages injected here by script.js -->
+      <div class="messages" id="messages"></div>
+    </main>
+
+    <!-- Input -->
+    <footer class="input-bar">
+      <div class="input-wrapper">
+        <textarea
+          id="userInput"
+          class="user-input"
+          placeholder="Ask LearnMate anything about your learning journey…"
+          rows="1"
+          autocomplete="off"
+          spellcheck="true"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" aria-label="Send message" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <p class="input-hint">LearnMate may make mistakes. Always verify important information.</p>
+    </footer>
+
+  </div><!-- /.main-wrapper -->
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
