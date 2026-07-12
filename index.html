@@ -8,6 +8,58 @@
 </head>
 <body>
 
+  <!-- ── Setup / Credentials Screen ──────────────────────────────────────────── -->
+  <div class="setup-overlay" id="setupOverlay">
+    <div class="setup-card">
+      <div class="setup-logo-wrap">
+        <img src="assets/LearnMate.png" alt="LearnMate" class="setup-logo" />
+      </div>
+      <h1 class="setup-title">Welcome to <span>LearnMate</span></h1>
+      <p class="setup-sub">Enter your IBM Cloud credentials to start your personalized learning journey.</p>
+
+      <div class="setup-fields">
+
+        <div class="setup-field">
+          <label class="setup-label">IBM Cloud API Key <span class="req">*</span></label>
+          <div class="setup-input-wrap">
+            <input type="password" id="setupApiKey" class="setup-input" placeholder="Paste your IBM Cloud API Key…" autocomplete="off" />
+            <button class="setup-eye" id="toggleApiKey" title="Show/hide">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <p class="setup-hint-text">Get this from <a href="https://cloud.ibm.com/iam/apikeys" target="_blank">cloud.ibm.com/iam/apikeys</a></p>
+        </div>
+
+        <div class="setup-field">
+          <label class="setup-label">watsonx Project ID <span class="req">*</span></label>
+          <input type="text" id="setupProjectId" class="setup-input" placeholder="e.g. a1b2c3d4-xxxx-xxxx-xxxx-abcdef123456" autocomplete="off" />
+          <p class="setup-hint-text">Find it in <a href="https://dataplatform.cloud.ibm.com/projects" target="_blank">watsonx.ai</a> → Your Project → Manage → General</p>
+        </div>
+
+        <div class="setup-field">
+          <label class="setup-label">Region</label>
+          <select id="setupRegion" class="setup-input setup-select">
+            <option value="au-syd">Sydney (au-syd)</option>
+            <option value="us-south">Dallas (us-south)</option>
+            <option value="eu-de">Frankfurt (eu-de)</option>
+            <option value="eu-gb">London (eu-gb)</option>
+            <option value="jp-tok">Tokyo (jp-tok)</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="setup-error" id="setupError"></div>
+
+      <button class="setup-btn" id="setupBtn">
+        <span id="setupBtnText">Connect to IBM watsonx</span>
+        <div class="setup-spinner" id="setupSpinner"></div>
+      </button>
+
+      <p class="setup-privacy">🔒 Your credentials are stored only in your browser's localStorage and never sent anywhere except IBM Cloud.</p>
+    </div>
+  </div>
+
   <!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -62,7 +114,10 @@
         <img src="assets/LearnMate.png" alt="" class="topbar-logo" />
         LearnMate
       </div>
-      <div class="topbar-status">Online</div>
+      <div class="topbar-status" id="topbarStatus">Online</div>
+      <button class="clear-btn" id="settingsBtn" title="Settings / Change credentials" style="margin-right:4px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <button class="clear-btn" id="clearBtn" title="Clear conversation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>

@@ -1,25 +1,33 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    LearnMate – Main Script
-   IBM Granite via watsonx.ai
+   IBM watsonx · Llama 3.3 70B
 ═══════════════════════════════════════════════════════════════════════════ */
 
 'use strict';
 
 // ── Marked.js config ─────────────────────────────────────────────────────────
 if (typeof marked !== 'undefined') {
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-  });
+  marked.setOptions({ breaks: true, gfm: true });
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
+const setupOverlay  = document.getElementById('setupOverlay');
+const setupApiKey   = document.getElementById('setupApiKey');
+const setupProjectId= document.getElementById('setupProjectId');
+const setupRegion   = document.getElementById('setupRegion');
+const setupBtn      = document.getElementById('setupBtn');
+const setupBtnText  = document.getElementById('setupBtnText');
+const setupSpinner  = document.getElementById('setupSpinner');
+const setupError    = document.getElementById('setupError');
+const toggleApiKey  = document.getElementById('toggleApiKey');
+
 const messagesEl    = document.getElementById('messages');
 const welcomeScreen = document.getElementById('welcomeScreen');
 const chatArea      = document.getElementById('chatArea');
 const userInput     = document.getElementById('userInput');
 const sendBtn       = document.getElementById('sendBtn');
 const clearBtn      = document.getElementById('clearBtn');
+const settingsBtn   = document.getElementById('settingsBtn');
 const menuBtn       = document.getElementById('menuBtn');
 const sidebar       = document.getElementById('sidebar');
 const sidebarClose  = document.getElementById('sidebarClose');
@@ -27,31 +35,200 @@ const btnNewChat    = document.getElementById('btnNewChat');
 const btnHistory    = document.getElementById('btnHistory');
 const btnProgress   = document.getElementById('btnProgress');
 const btnRoadmap    = document.getElementById('btnRoadmap');
+const topbarStatus  = document.getElementById('topbarStatus');
 
-// ── State ────────────────────────────────────────────────────────────────────
-let conversationHistory = [];   // [{role, content}, ...]
+// ── Runtime credentials (loaded from localStorage) ───────────────────────────
+let SESSION = {
+  apiKey:    '',
+  projectId: '',
+  region:    'au-syd',
+  iamToken:  '',
+  tokenExp:  0,         // unix ms when token expires
+};
+
+// ── App state ─────────────────────────────────────────────────────────────────
+let conversationHistory = [];
 let isGenerating        = false;
-let milestones          = [];   // progress tracking items
-let studentProfile      = {};   // collected profile data
+let milestones          = [];
+let studentProfile      = {};
 
-// ── Load persisted data ───────────────────────────────────────────────────────
-(function loadState() {
+// ═══════════════════════════════════════════════════════════════════════════
+//  SETUP SCREEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem('learnmate_session');
+    if (raw) Object.assign(SESSION, JSON.parse(raw));
+  } catch (_) {}
+}
+
+function saveSession() {
+  localStorage.setItem('learnmate_session', JSON.stringify(SESSION));
+}
+
+function isSessionValid() {
+  return SESSION.apiKey && SESSION.projectId && SESSION.iamToken &&
+         Date.now() < SESSION.tokenExp - 60_000; // 1 min buffer
+}
+
+function showSetup() {
+  setupOverlay.classList.remove('hidden');
+  // pre-fill saved values
+  if (SESSION.apiKey)    setupApiKey.value     = SESSION.apiKey;
+  if (SESSION.projectId) setupProjectId.value  = SESSION.projectId;
+  if (SESSION.region)    setupRegion.value      = SESSION.region;
+  hideSetupError();
+}
+
+function hideSetup() {
+  setupOverlay.classList.add('hidden');
+}
+
+function showSetupError(msg) {
+  setupError.textContent = msg;
+  setupError.classList.add('visible');
+}
+
+function hideSetupError() {
+  setupError.classList.remove('visible');
+  setupError.textContent = '';
+}
+
+function setSetupLoading(on) {
+  setupBtn.disabled = on;
+  setupSpinner.classList.toggle('active', on);
+  setupBtnText.textContent = on ? 'Connecting…' : 'Connect to IBM watsonx';
+}
+
+// Toggle API key visibility
+toggleApiKey.addEventListener('click', () => {
+  setupApiKey.type = setupApiKey.type === 'password' ? 'text' : 'password';
+});
+
+// Connect button
+setupBtn.addEventListener('click', handleSetupConnect);
+setupApiKey.addEventListener('keydown',    e => { if (e.key === 'Enter') handleSetupConnect(); });
+setupProjectId.addEventListener('keydown', e => { if (e.key === 'Enter') handleSetupConnect(); });
+
+async function handleSetupConnect() {
+  const apiKey    = setupApiKey.value.trim();
+  const projectId = setupProjectId.value.trim();
+  const region    = setupRegion.value;
+
+  hideSetupError();
+
+  if (!apiKey)    return showSetupError('Please enter your IBM Cloud API Key.');
+  if (!projectId) return showSetupError('Please enter your watsonx Project ID.');
+
+  setSetupLoading(true);
+
+  try {
+    const token = await fetchIAMToken(apiKey);
+
+    // Save to session
+    SESSION.apiKey    = apiKey;
+    SESSION.projectId = projectId;
+    SESSION.region    = region;
+    SESSION.iamToken  = token.access_token;
+    SESSION.tokenExp  = Date.now() + (token.expires_in * 1000);
+    saveSession();
+
+    // Update config URL with chosen region
+    LEARNMATE_CONFIG.WATSONX_API_URL =
+      `https://${region}.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-31`;
+
+    hideSetup();
+    updateTopbarStatus(true);
+    showToast('✅ Connected to IBM watsonx!');
+
+  } catch (err) {
+    showSetupError(`Connection failed: ${err.message}`);
+  } finally {
+    setSetupLoading(false);
+  }
+}
+
+async function fetchIAMToken(apiKey) {
+  const res = await fetch(LEARNMATE_CONFIG.IAM_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=${encodeURIComponent(apiKey)}`,
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    if (res.status === 400 || res.status === 401) {
+      throw new Error('Invalid API Key. Please check and try again.');
+    }
+    throw new Error(`IBM IAM error ${res.status}: ${txt.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+// Auto-refresh token before it expires
+async function ensureFreshToken() {
+  if (Date.now() >= SESSION.tokenExp - 60_000) {
+    try {
+      const token = await fetchIAMToken(SESSION.apiKey);
+      SESSION.iamToken = token.access_token;
+      SESSION.tokenExp = Date.now() + (token.expires_in * 1000);
+      saveSession();
+    } catch (_) {
+      // If refresh fails, show setup screen
+      showSetup();
+      throw new Error('Session expired. Please reconnect.');
+    }
+  }
+}
+
+function updateTopbarStatus(online) {
+  if (!topbarStatus) return;
+  topbarStatus.textContent = online ? 'Online' : 'Offline';
+  topbarStatus.style.color = online ? '' : 'var(--danger)';
+}
+
+// Settings button reopens setup
+settingsBtn.addEventListener('click', () => {
+  showSetup();
+  sidebar.classList.remove('open');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  INIT — load session or show setup
+// ═══════════════════════════════════════════════════════════════════════════
+(function init() {
+  loadSession();
+
+  // Load persisted chat
   try {
     const saved = localStorage.getItem('learnmate_history');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      conversationHistory = parsed.history || [];
+      const parsed    = JSON.parse(saved);
+      conversationHistory = parsed.history   || [];
       milestones          = parsed.milestones || [];
-      studentProfile      = parsed.profile || {};
+      studentProfile      = parsed.profile    || {};
       if (conversationHistory.length > 0) {
         hideWelcome();
         conversationHistory.forEach(msg => renderMessage(msg.role, msg.content, false));
       }
     }
-  } catch (_) { /* ignore parse errors */ }
+  } catch (_) {}
+
+  if (isSessionValid()) {
+    // Restore region URL
+    LEARNMATE_CONFIG.WATSONX_API_URL =
+      `https://${SESSION.region}.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-31`;
+    hideSetup();
+    updateTopbarStatus(true);
+  } else {
+    showSetup();
+    updateTopbarStatus(false);
+  }
 })();
 
-// ── Persist state ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  PERSIST CHAT STATE
+// ═══════════════════════════════════════════════════════════════════════════
 function saveState() {
   try {
     localStorage.setItem('learnmate_history', JSON.stringify({
@@ -63,13 +240,8 @@ function saveState() {
 }
 
 // ── Welcome ───────────────────────────────────────────────────────────────────
-function hideWelcome() {
-  welcomeScreen.style.display = 'none';
-}
-
-function showWelcome() {
-  welcomeScreen.style.display = 'flex';
-}
+function hideWelcome() { welcomeScreen.style.display = 'none'; }
+function showWelcome() { welcomeScreen.style.display = 'flex'; }
 
 // ── Textarea auto-resize ──────────────────────────────────────────────────────
 userInput.addEventListener('input', () => {
@@ -78,7 +250,6 @@ userInput.addEventListener('input', () => {
   sendBtn.disabled = userInput.value.trim() === '';
 });
 
-// Send on Enter (Shift+Enter = newline)
 userInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -115,7 +286,7 @@ clearBtn.addEventListener('click', () => {
   showToast('Conversation cleared');
 });
 
-// ── Sidebar toggle ────────────────────────────────────────────────────────────
+// ── Sidebar ───────────────────────────────────────────────────────────────────
 menuBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
 sidebarClose.addEventListener('click', () => sidebar.classList.remove('open'));
 
@@ -128,67 +299,50 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ── Nav buttons ───────────────────────────────────────────────────────────────
-btnNewChat.addEventListener('click', () => {
-  clearBtn.click();
-  sidebar.classList.remove('open');
-});
+btnNewChat.addEventListener('click', () => { clearBtn.click(); sidebar.classList.remove('open'); });
+btnHistory.addEventListener('click', () => { showToast('History stored in this session'); sidebar.classList.remove('open'); });
+btnProgress.addEventListener('click', () => { openProgressPanel(); sidebar.classList.remove('open'); });
+btnRoadmap.addEventListener('click',  () => { openRoadmapPanel();  sidebar.classList.remove('open'); });
 
-btnHistory.addEventListener('click', () => {
-  showToast('History is stored in this browser session');
-  sidebar.classList.remove('open');
-});
-
-btnProgress.addEventListener('click', () => {
-  openProgressPanel();
-  sidebar.classList.remove('open');
-});
-
-btnRoadmap.addEventListener('click', () => {
-  openRoadmapPanel();
-  sidebar.classList.remove('open');
-});
-
-// ── Main send handler ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  MAIN SEND HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
 async function handleSend() {
   const text = userInput.value.trim();
   if (!text || isGenerating) return;
 
-  // Reset input
+  // Guard — must be connected
+  if (!SESSION.iamToken) { showSetup(); return; }
+
   userInput.value = '';
   userInput.style.height = 'auto';
   sendBtn.disabled = true;
-
   hideWelcome();
 
-  // Render user message
   renderMessage('user', text);
-
-  // Add to history
   conversationHistory.push({ role: 'user', content: text });
   saveState();
-
-  // Extract any profile updates from user text
   extractProfileData(text);
 
-  // Show typing
   const typingId = showTyping();
-
-  isGenerating = true;
+  isGenerating   = true;
   setInputState(false);
 
   try {
+    await ensureFreshToken();
     const response = await callWatsonxAPI(conversationHistory);
     removeTyping(typingId);
     renderMessage('assistant', response);
     conversationHistory.push({ role: 'assistant', content: response });
-
-    // Extract milestones from the response
     extractMilestones(response);
     saveState();
   } catch (err) {
     removeTyping(typingId);
-    renderMessage('assistant', buildErrorMessage(err));
+    if (err.message.includes('reconnect')) {
+      // ensureFreshToken already showed setup
+    } else {
+      renderMessage('assistant', `**Error:** ${err.message}\n\nPlease check your credentials via the ⚙️ settings button.`);
+    }
   } finally {
     isGenerating = false;
     setInputState(true);
@@ -196,16 +350,21 @@ async function handleSend() {
   }
 }
 
-// ── IBM watsonx API call ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  IBM watsonx API CALL
+// ═══════════════════════════════════════════════════════════════════════════
 async function callWatsonxAPI(history) {
   const messages = [
     { role: 'system', content: LEARNMATE_CONFIG.SYSTEM_PROMPT },
-    ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+    ...history.map(m => ({
+      role:    m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }))
   ];
 
   const body = {
     model_id:   LEARNMATE_CONFIG.MODEL_ID,
-    project_id: LEARNMATE_CONFIG.PROJECT_ID,
+    project_id: SESSION.projectId,
     messages,
     parameters: {
       max_new_tokens:     LEARNMATE_CONFIG.MAX_NEW_TOKENS,
@@ -219,7 +378,7 @@ async function callWatsonxAPI(history) {
     method: 'POST',
     headers: {
       'Content-Type':  'application/json',
-      'Authorization': LEARNMATE_CONFIG.IAM_TOKEN,
+      'Authorization': `Bearer ${SESSION.iamToken}`,
     },
     body: JSON.stringify(body),
   });
@@ -229,49 +388,41 @@ async function callWatsonxAPI(history) {
     throw new Error(`API error ${res.status}: ${errText.slice(0, 200)}`);
   }
 
-  const data = await res.json();
-
-  // /text/chat response shape: data.choices[0].message.content
-  const content =
-    data?.choices?.[0]?.message?.content ||
-    data?.results?.[0]?.generated_text ||
-    '';
+  const data    = await res.json();
+  const content = data?.choices?.[0]?.message?.content ||
+                  data?.results?.[0]?.generated_text   || '';
 
   if (!content.trim()) throw new Error('Empty response from model.');
   return content.trim();
 }
 
-// ── Render a message bubble ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  RENDER MESSAGE
+// ═══════════════════════════════════════════════════════════════════════════
 function renderMessage(role, content, scroll = true) {
   const isUser = role === 'user';
   const div    = document.createElement('div');
   div.className = `message ${isUser ? 'user' : 'bot'}`;
 
-  // Avatar
   const avatar = document.createElement('div');
   avatar.className = `avatar ${isUser ? 'user' : 'bot'}`;
   if (isUser) {
     avatar.textContent = getInitials();
   } else {
     const img = document.createElement('img');
-    img.src = 'assets/LearnMate.png';
-    img.alt = 'LearnMate';
+    img.src = 'assets/LearnMate.png'; img.alt = 'LearnMate';
     avatar.appendChild(img);
   }
 
-  // Bubble
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
   if (isUser) {
     bubble.textContent = content;
   } else {
-    // Render markdown
     bubble.innerHTML = typeof marked !== 'undefined'
       ? marked.parse(content)
       : escapeHtml(content).replace(/\n/g, '<br>');
-
-    // Copy button
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
     copyBtn.textContent = 'Copy';
@@ -279,7 +430,6 @@ function renderMessage(role, content, scroll = true) {
     bubble.appendChild(copyBtn);
   }
 
-  // Timestamp
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
   meta.textContent = formatTime(new Date());
@@ -291,7 +441,6 @@ function renderMessage(role, content, scroll = true) {
 
   div.appendChild(avatar);
   div.appendChild(col);
-
   messagesEl.appendChild(div);
 
   if (scroll) scrollToBottom();
@@ -301,7 +450,7 @@ function renderMessage(role, content, scroll = true) {
 let typingCounter = 0;
 
 function showTyping() {
-  const id = ++typingCounter;
+  const id  = ++typingCounter;
   const div = document.createElement('div');
   div.className = 'message bot';
   div.dataset.typingId = id;
@@ -309,16 +458,12 @@ function showTyping() {
   const avatar = document.createElement('div');
   avatar.className = 'avatar bot';
   const img = document.createElement('img');
-  img.src = 'assets/LearnMate.png';
-  img.alt = 'LearnMate';
+  img.src = 'assets/LearnMate.png'; img.alt = 'LearnMate';
   avatar.appendChild(img);
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.innerHTML = `
-    <div class="typing-indicator">
-      <span></span><span></span><span></span>
-    </div>`;
+  bubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
 
   div.appendChild(avatar);
   div.appendChild(bubble);
@@ -335,34 +480,28 @@ function removeTyping(id) {
 // ── Progress panel ────────────────────────────────────────────────────────────
 function openProgressPanel() {
   const overlay = createOverlay('My Progress');
-  const body = overlay.querySelector('.panel-body');
-
+  const body    = overlay.querySelector('.panel-body');
   if (milestones.length === 0) {
-    body.innerHTML = `<div class="progress-empty">No milestones yet. Start a conversation with LearnMate to generate your learning roadmap!</div>`;
+    body.innerHTML = `<div class="progress-empty">No milestones yet. Start a conversation with LearnMate to generate your roadmap!</div>`;
   } else {
-    milestones.forEach((m, i) => {
-      const item = document.createElement('div');
+    milestones.forEach(m => {
+      const item  = document.createElement('div');
       item.className = 'milestone-item';
-
       const check = document.createElement('div');
       check.className = `milestone-check ${m.done ? 'done' : ''}`;
+      const textEl = document.createElement('div');
+      textEl.className = `milestone-text ${m.done ? 'done' : ''}`;
+      textEl.textContent = m.text;
       check.addEventListener('click', () => {
         m.done = !m.done;
         check.classList.toggle('done', m.done);
         textEl.classList.toggle('done', m.done);
         saveState();
       });
-
-      const textEl = document.createElement('div');
-      textEl.className = `milestone-text ${m.done ? 'done' : ''}`;
-      textEl.textContent = m.text;
-
-      item.appendChild(check);
-      item.appendChild(textEl);
+      item.appendChild(check); item.appendChild(textEl);
       body.appendChild(item);
     });
   }
-
   document.body.appendChild(overlay);
   overlay.classList.add('open');
 }
@@ -370,36 +509,28 @@ function openProgressPanel() {
 // ── Roadmap panel ─────────────────────────────────────────────────────────────
 function openRoadmapPanel() {
   const overlay = createOverlay('My Roadmap');
-  const body = overlay.querySelector('.panel-body');
-
+  const body    = overlay.querySelector('.panel-body');
   const roadmapMsgs = conversationHistory.filter(m =>
     m.role === 'assistant' &&
     (m.content.toLowerCase().includes('phase') ||
      m.content.toLowerCase().includes('roadmap') ||
      m.content.toLowerCase().includes('week'))
   );
-
   if (roadmapMsgs.length === 0) {
-    body.innerHTML = `<div class="progress-empty">No roadmap generated yet. Ask LearnMate to create your personalized learning pathway!</div>`;
+    body.innerHTML = `<div class="progress-empty">No roadmap yet. Ask LearnMate to create your personalized learning pathway!</div>`;
   } else {
     const latest = roadmapMsgs[roadmapMsgs.length - 1].content;
     body.innerHTML = typeof marked !== 'undefined'
       ? marked.parse(latest)
       : escapeHtml(latest).replace(/\n/g, '<br>');
-    body.style.fontFamily = 'inherit';
-    body.style.fontSize = '13.5px';
-    body.style.lineHeight = '1.7';
   }
-
   document.body.appendChild(overlay);
   overlay.classList.add('open');
 }
 
-// ── Generic overlay builder ───────────────────────────────────────────────────
 function createOverlay(title) {
   const overlay = document.createElement('div');
   overlay.className = 'panel-overlay';
-
   overlay.innerHTML = `
     <div class="panel">
       <div class="panel-header">
@@ -408,27 +539,22 @@ function createOverlay(title) {
       </div>
       <div class="panel-body"></div>
     </div>`;
-
   overlay.querySelector('.panel-close').addEventListener('click', () => {
     overlay.classList.remove('open');
     setTimeout(() => overlay.remove(), 300);
   });
-
-  overlay.addEventListener('click', (e) => {
+  overlay.addEventListener('click', e => {
     if (e.target === overlay) {
       overlay.classList.remove('open');
       setTimeout(() => overlay.remove(), 300);
     }
   });
-
   return overlay;
 }
 
 // ── Milestone extraction ──────────────────────────────────────────────────────
 function extractMilestones(text) {
-  // Look for phase headers or bullet list items that look like milestones
-  const phaseRegex = /\*\*Phase\s*\d+[^*]*\*\*|##\s+Phase\s*\d+[^\n]*/gi;
-  const matches = text.match(phaseRegex);
+  const matches = text.match(/\*\*Phase\s*\d+[^*]*\*\*|##\s+Phase\s*\d+[^\n]*/gi);
   if (matches) {
     matches.forEach(m => {
       const clean = m.replace(/\*\*/g, '').replace(/##\s+/, '').trim();
@@ -439,33 +565,23 @@ function extractMilestones(text) {
   }
 }
 
-// ── Student profile extraction (lightweight) ──────────────────────────────────
+// ── Profile extraction ────────────────────────────────────────────────────────
 function extractProfileData(text) {
   const lower = text.toLowerCase();
-
-  // Career goal
-  const careers = ['frontend', 'backend', 'full stack', 'data scientist', 'ai engineer',
-    'machine learning', 'cybersecurity', 'cloud engineer', 'devops', 'ui/ux',
-    'mobile', 'game developer', 'software engineer'];
-  careers.forEach(c => {
-    if (lower.includes(c)) studentProfile.careerGoal = c;
-  });
-
-  // Skill level
-  if (lower.includes('beginner') || lower.includes('no experience')) studentProfile.level = 'Beginner';
-  if (lower.includes('intermediate'))                                  studentProfile.level = 'Intermediate';
-  if (lower.includes('advanced') || lower.includes('experienced'))    studentProfile.level = 'Advanced';
-
-  // Hours
-  const hoursMatch = lower.match(/(\d+)\s*hours?\s*(per|a)?\s*week/);
-  if (hoursMatch) studentProfile.hoursPerWeek = parseInt(hoursMatch[1]);
+  const careers = ['frontend','backend','full stack','data scientist','ai engineer',
+    'machine learning','cybersecurity','cloud engineer','devops','ui/ux',
+    'mobile','game developer','software engineer'];
+  careers.forEach(c => { if (lower.includes(c)) studentProfile.careerGoal = c; });
+  if (lower.includes('beginner'))   studentProfile.level = 'Beginner';
+  if (lower.includes('intermediate')) studentProfile.level = 'Intermediate';
+  if (lower.includes('advanced'))   studentProfile.level = 'Advanced';
+  const h = lower.match(/(\d+)\s*hours?\s*(per|a)?\s*week/);
+  if (h) studentProfile.hoursPerWeek = parseInt(h[1]);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    chatArea.scrollTop = chatArea.scrollHeight;
-  });
+  requestAnimationFrame(() => { chatArea.scrollTop = chatArea.scrollHeight; });
 }
 
 function setInputState(enabled) {
@@ -475,10 +591,7 @@ function setInputState(enabled) {
 }
 
 function getInitials() {
-  if (studentProfile.name) {
-    return studentProfile.name.slice(0, 2).toUpperCase();
-  }
-  return 'ME';
+  return studentProfile.name ? studentProfile.name.slice(0, 2).toUpperCase() : 'ME';
 }
 
 function formatTime(date) {
@@ -486,73 +599,24 @@ function formatTime(date) {
 }
 
 function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function copyToClipboard(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => {
-      btn.textContent = 'Copy';
-      btn.classList.remove('copied');
-    }, 2000);
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
   }).catch(() => showToast('Copy failed'));
 }
 
-function buildErrorMessage(err) {
-  const isCredentialError =
-    err.message.includes('401') ||
-    err.message.includes('403') ||
-    LEARNMATE_CONFIG.IAM_TOKEN.includes('YOUR_IBM');
-
-  if (isCredentialError) {
-    return `**Configuration required**
-
-To connect LearnMate to IBM Granite, update \`config.js\` with your credentials:
-
-\`\`\`
-IAM_TOKEN:  "Bearer <your_ibm_iam_token>"
-PROJECT_ID: "<your_watsonx_project_id>"
-\`\`\`
-
-**How to get credentials:**
-1. Log in to [IBM Cloud](https://cloud.ibm.com)
-2. Run \`ibmcloud iam oauth-tokens\` to get your IAM token
-3. Open your watsonx.ai project and copy the Project ID from Settings
-
-Once configured, refresh this page and start chatting!`;
-  }
-
-  return `Sorry, I encountered an error: \`${err.message}\`
-
-Please check your internet connection and IBM credentials in \`config.js\`, then try again.`;
-}
-
-// ── Toast notification ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 let toastTimeout;
-
 function showToast(msg) {
   let toast = document.querySelector('.toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.className = 'toast';
-    document.body.appendChild(toast);
-  }
+  if (!toast) { toast = document.createElement('div'); toast.className = 'toast'; document.body.appendChild(toast); }
   toast.textContent = msg;
   toast.classList.add('show');
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2400);
+  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
 }
-
-// ── Initial greeting (if fresh session) ──────────────────────────────────────
-(function maybeGreet() {
-  if (conversationHistory.length === 0) {
-    // No greeting pushed to history — let user initiate; welcome screen shown.
-  }
-})();
