@@ -17,17 +17,27 @@
       <h1 class="setup-title">Welcome to <span>LearnMate</span></h1>
       <p class="setup-sub">Enter your IBM Cloud credentials to start your personalized learning journey.</p>
 
+      <!-- How to get token -->
+      <div class="setup-steps">
+        <p class="setup-steps-title">How to get your IAM Token (1 min):</p>
+        <ol class="setup-steps-list">
+          <li>Open <a href="https://cloud.ibm.com/iam/apikeys" target="_blank">IBM Cloud → API Keys</a> → create a key</li>
+          <li>Run in terminal: <code>curl -X POST "https://iam.cloud.ibm.com/identity/token" -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=YOUR_KEY"</code></li>
+          <li>Copy the <code>access_token</code> value from the response</li>
+        </ol>
+      </div>
+
       <div class="setup-fields">
 
         <div class="setup-field">
-          <label class="setup-label">IBM Cloud API Key <span class="req">*</span></label>
+          <label class="setup-label">IBM IAM Token <span class="req">*</span></label>
           <div class="setup-input-wrap">
-            <input type="password" id="setupApiKey" class="setup-input" placeholder="Paste your IBM Cloud API Key…" autocomplete="off" />
+            <input type="password" id="setupIamToken" class="setup-input" placeholder="Paste your Bearer token (eyJraWQ…)" autocomplete="off" />
             <button class="setup-eye" id="toggleApiKey" title="Show/hide">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
-          <p class="setup-hint-text">Get this from <a href="https://cloud.ibm.com/iam/apikeys" target="_blank">cloud.ibm.com/iam/apikeys</a></p>
+          <p class="setup-hint-text">Expires in 1 hour. Token starts with <code>eyJ…</code> — do NOT include "Bearer"</p>
         </div>
 
         <div class="setup-field">
@@ -56,7 +66,7 @@
         <div class="setup-spinner" id="setupSpinner"></div>
       </button>
 
-      <p class="setup-privacy">🔒 Your credentials are stored only in your browser's localStorage and never sent anywhere except IBM Cloud.</p>
+      <p class="setup-privacy">🔒 Your token is stored only in your browser's localStorage and is never sent anywhere except IBM watsonx.</p>
     </div>
   </div>
 
