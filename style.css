@@ -828,6 +828,31 @@ html, body {
   position: relative;
 }
 
+.setup-close {
+  position: absolute;
+  top: 18px; right: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  transition: all 0.2s;
+}
+.setup-close:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
+.mode-badge-proto {
+  color: var(--accent-bright) !important;
+  background: rgba(91,141,246,0.15) !important;
+  border-color: rgba(91,141,246,0.3) !important;
+}
+
 .setup-logo-wrap {
   display: flex; justify-content: center;
   margin-bottom: 20px;

@@ -9,52 +9,87 @@
 <body>
 
   <!-- ── Setup / Credentials Screen ──────────────────────────────────────────── -->
-  <div class="setup-overlay" id="setupOverlay">
+  <div class="setup-overlay hidden" id="setupOverlay">
     <div class="setup-card">
+      <button class="setup-close" id="setupClose" title="Close">&#10005;</button>
       <div class="setup-logo-wrap">
         <img src="assets/LearnMate.png" alt="LearnMate" class="setup-logo" />
       </div>
-      <h1 class="setup-title">Welcome to <span>LearnMate</span></h1>
-      <p class="setup-sub">Enter your IBM Cloud credentials to start your personalized learning journey.</p>
-
-      <!-- How to get token -->
-      <div class="setup-steps">
-        <p class="setup-steps-title">How to get your IAM Token (1 min):</p>
-        <ol class="setup-steps-list">
-          <li>Open <a href="https://cloud.ibm.com/iam/apikeys" target="_blank">IBM Cloud → API Keys</a> → create a key</li>
-          <li>Run in terminal: <code>curl -X POST "https://iam.cloud.ibm.com/identity/token" -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=YOUR_KEY"</code></li>
-          <li>Copy the <code>access_token</code> value from the response</li>
-        </ol>
-      </div>
+      <h1 class="setup-title">AI Engine <span>Settings</span></h1>
+      <p class="setup-sub">Choose an AI provider or use the built-in Interactive Prototype Mode.</p>
 
       <div class="setup-fields">
-
         <div class="setup-field">
-          <label class="setup-label">IBM IAM Token <span class="req">*</span></label>
-          <div class="setup-input-wrap">
-            <input type="password" id="setupIamToken" class="setup-input" placeholder="Paste your Bearer token (eyJraWQ…)" autocomplete="off" />
-            <button class="setup-eye" id="toggleApiKey" title="Show/hide">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-          <p class="setup-hint-text">Expires in 1 hour. Token starts with <code>eyJ…</code> — do NOT include "Bearer"</p>
-        </div>
-
-        <div class="setup-field">
-          <label class="setup-label">watsonx Project ID <span class="req">*</span></label>
-          <input type="text" id="setupProjectId" class="setup-input" placeholder="e.g. a1b2c3d4-xxxx-xxxx-xxxx-abcdef123456" autocomplete="off" />
-          <p class="setup-hint-text">Find it in <a href="https://dataplatform.cloud.ibm.com/projects" target="_blank">watsonx.ai</a> → Your Project → Manage → General</p>
-        </div>
-
-        <div class="setup-field">
-          <label class="setup-label">Region</label>
-          <select id="setupRegion" class="setup-input setup-select">
-            <option value="au-syd">Sydney (au-syd)</option>
-            <option value="us-south">Dallas (us-south)</option>
-            <option value="eu-de">Frankfurt (eu-de)</option>
-            <option value="eu-gb">London (eu-gb)</option>
-            <option value="jp-tok">Tokyo (jp-tok)</option>
+          <label class="setup-label">AI Engine Provider</label>
+          <select id="setupProvider" class="setup-input setup-select">
+            <option value="prototype">✦ Interactive Prototype Mode (No Key Needed)</option>
+            <option value="gemini">Google Gemini API (Free Permanent Key)</option>
+            <option value="watsonx">IBM watsonx.ai (1-Hour IAM Token)</option>
           </select>
+        </div>
+
+        <!-- Prototype Mode Info -->
+        <div id="sectionPrototype" class="setup-steps">
+          <p class="setup-steps-title">💡 Interactive Prototype Mode</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.5;">
+            Runs the full LearnMate Career Coach simulation offline in your browser. It builds personalized phased roadmaps, course recommendations, and interactive milestone checklists without needing any external API key.
+          </p>
+        </div>
+
+        <!-- Google Gemini Section -->
+        <div id="sectionGemini" style="display:none; flex-direction:column; gap:12px;">
+          <div class="setup-steps">
+            <p class="setup-steps-title">Get a free key (30 seconds):</p>
+            <ol class="setup-steps-list">
+              <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio → Get API Key</a></li>
+              <li>Create a free key (no credit card required)</li>
+              <li>Paste it below for unlimited live responses that don't expire every hour</li>
+            </ol>
+          </div>
+          <div class="setup-field">
+            <label class="setup-label">Gemini API Key <span class="req">*</span></label>
+            <div class="setup-input-wrap">
+              <input type="password" id="setupGeminiKey" class="setup-input" placeholder="Paste AIzaSy… key" autocomplete="off" />
+              <button class="setup-eye" id="toggleGeminiKey" title="Show/hide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- IBM watsonx Section -->
+        <div id="sectionWatsonx" style="display:none; flex-direction:column; gap:12px;">
+          <div class="setup-steps">
+            <p class="setup-steps-title">How to get your IAM Token (expires every 1 hr):</p>
+            <ol class="setup-steps-list">
+              <li>Open <a href="https://cloud.ibm.com/iam/apikeys" target="_blank">IBM Cloud → API Keys</a> → create a key</li>
+              <li>Run in PowerShell: <code>curl -X POST "https://iam.cloud.ibm.com/identity/token" -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=YOUR_KEY"</code></li>
+              <li>Copy the <code>access_token</code> value</li>
+            </ol>
+          </div>
+          <div class="setup-field">
+            <label class="setup-label">IBM IAM Token <span class="req">*</span></label>
+            <div class="setup-input-wrap">
+              <input type="password" id="setupIamToken" class="setup-input" placeholder="Paste your Bearer token (eyJraWQ…)" autocomplete="off" />
+              <button class="setup-eye" id="toggleApiKey" title="Show/hide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="setup-field">
+            <label class="setup-label">watsonx Project ID <span class="req">*</span></label>
+            <input type="text" id="setupProjectId" class="setup-input" placeholder="e.g. a1b2c3d4-xxxx-xxxx-xxxx-abcdef123456" autocomplete="off" />
+          </div>
+          <div class="setup-field">
+            <label class="setup-label">Region</label>
+            <select id="setupRegion" class="setup-input setup-select">
+              <option value="au-syd">Sydney (au-syd)</option>
+              <option value="us-south">Dallas (us-south)</option>
+              <option value="eu-de">Frankfurt (eu-de)</option>
+              <option value="eu-gb">London (eu-gb)</option>
+              <option value="jp-tok">Tokyo (jp-tok)</option>
+            </select>
+          </div>
         </div>
 
       </div>
@@ -62,11 +97,11 @@
       <div class="setup-error" id="setupError"></div>
 
       <button class="setup-btn" id="setupBtn">
-        <span id="setupBtnText">Connect to IBM watsonx</span>
+        <span id="setupBtnText">Save &amp; Activate</span>
         <div class="setup-spinner" id="setupSpinner"></div>
       </button>
 
-      <p class="setup-privacy">🔒 Your token is stored only in your browser's localStorage and is never sent anywhere except IBM watsonx.</p>
+      <p class="setup-privacy">🔒 Your keys are stored only locally in your browser's localStorage and never transmitted to any third party.</p>
     </div>
   </div>
 
@@ -100,6 +135,12 @@
       <button class="nav-btn" id="btnRoadmap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         My Roadmap
+      </button>
+
+      <div class="nav-label">Settings</div>
+      <button class="nav-btn" id="btnSettings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        AI Settings
       </button>
     </nav>
 
